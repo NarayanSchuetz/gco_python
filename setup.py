@@ -1,44 +1,39 @@
-from distutils.core import setup
-from distutils.extension import Extension
 import os
 import subprocess
 
-VERSION = '0.0.1'
+import numpy
+from setuptools import Extension, setup
+from Cython.Build import cythonize
 
-try:
-    # Attempt to set up the cython module
-    from Cython.Distutils import build_ext
-    import numpy
+VERSION = "0.0.1"
 
-    # Make sure the gco_src directory is up to date. Technically this should
-    # occur during a build command, not during configuration
-    subprocess.check_call(['make', 'gco_src'])
+# Fetch + checksum-verify the GCO C++ sources (see Makefile). This intentionally
+# runs unconditionally: if the download or build deps are missing, the build
+# MUST fail rather than silently produce a package without the native module.
+subprocess.check_call(["make", "gco_src"])
 
-    gco_directory = "gco_src"
+gco_directory = "gco_src"
+sources = [
+    "gco_python.pyx",
+    os.path.join(gco_directory, "GCoptimization.cpp"),
+    os.path.join(gco_directory, "graph.cpp"),
+    os.path.join(gco_directory, "LinkedBlockList.cpp"),
+    os.path.join(gco_directory, "maxflow.cpp"),
+]
 
-    files = ['GCoptimization.cpp', 'graph.cpp', 'LinkedBlockList.cpp',
-             'maxflow.cpp']
-
-    files = [os.path.join(gco_directory, f) for f in files]
-    files.insert(0, "gco_python.pyx")
-
-    setup(
-        name='pygco',
-        version=VERSION,
-        install_requires=['cython', 'numpy'],
-        cmdclass={'build_ext': build_ext},
-        ext_modules=[Extension(
-            "pygco", files, language="c++",
-            include_dirs=[gco_directory, numpy.get_include()],
-            library_dirs=[gco_directory],
-            extra_compile_args=["-fpermissive"]
-        )],
-    )
-except ImportError:
-    # If cython or numpy are not available, then do not try to configure the
-    # cython extension, just record that we need them as dependencies
-    setup(
-        name='pygco',
-        version=VERSION,
-        install_requires=['cython', 'numpy']
-    )
+setup(
+    name="pygco",
+    version=VERSION,
+    ext_modules=cythonize(
+        [
+            Extension(
+                "pygco",
+                sources,
+                language="c++",
+                include_dirs=[gco_directory, numpy.get_include()],
+                library_dirs=[gco_directory],
+                extra_compile_args=["-fpermissive"],
+            )
+        ]
+    ),
+)
